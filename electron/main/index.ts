@@ -79,17 +79,22 @@ const SKILLS: Record<string, string> = {
 
 function getAgentPrompt(agentType: string): string {
   const prompts: Record<string, string> = {
-    planner: `Create tickets for this project. Format:
+    planner: `Analyze this project and create tickets.
+Output format - STRICTLY follow:
 #1
-**Title:** <title>
-**File path:** 
-**Dependencies:** <#1,#2 or ->
+**Title:** <ticket title>
+**File path:** <file path>
+**Description:** <brief description>
+**Dependencies:** <ticket IDs or "-">
 **Implementation steps:**
-1. step one
-2. step two
+1. <step one>
+2. <step two>
 
 #2
-... OUTPUT DONE`,
+**Title:** <title>
+... (repeat for each ticket)
+
+OUTPUT DONE when all tickets are listed.`,
     builder: 'You are a code implementation expert. Implement tasks according to the tickets. Write code directly to files. Run tests to verify. Output DONE when complete.',
     tester: 'You are a testing expert. Run tests to verify implementation. Report pass/fail status. Output DONE when complete.',
   };

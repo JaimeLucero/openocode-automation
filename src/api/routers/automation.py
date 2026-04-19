@@ -42,6 +42,9 @@ async def start_automation(request: AutomationStartRequest):
     engine = get_or_create_engine()
 
     planner_model = request.planner_model or "opencode/minimax-m2.5-free"
+    print(
+        f"[start] planner_model: {planner_model}, builder_model: {request.builder_model}, tester_model: {request.tester_model}"
+    )
 
     session_id = engine.start(
         project_dir=request.project_dir,

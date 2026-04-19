@@ -298,8 +298,8 @@ export function Onboarding({ onStart, error }: OnboardingProps) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {MODELS.map((m) => (
-                        <SelectItem key={m} value={m.toLowerCase().replace(/\s/g, '-')}>{m}</SelectItem>
+                      {Object.keys(MODEL_DISPLAY_MAP).map((m) => (
+                        <SelectItem key={m} value={m}>{MODEL_DISPLAY_MAP[m]}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -311,8 +311,21 @@ export function Onboarding({ onStart, error }: OnboardingProps) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {MODELS.map((m) => (
-                        <SelectItem key={m} value={m.toLowerCase().replace(/\s/g, '-')}>{m}</SelectItem>
+                      {Object.keys(MODEL_DISPLAY_MAP).map((m) => (
+                        <SelectItem key={m} value={m}>{MODEL_DISPLAY_MAP[m]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Tester Model (Testing & QA)</label>
+                  <Select value={testerModel} onValueChange={setTesterModel}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+<SelectContent>
+                      {Object.keys(MODEL_DISPLAY_MAP).map((m) => (
+                        <SelectItem key={m} value={m}>{MODEL_DISPLAY_MAP[m]}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -324,8 +337,8 @@ export function Onboarding({ onStart, error }: OnboardingProps) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {MODELS.map((m) => (
-                        <SelectItem key={m} value={m.toLowerCase().replace(/\s/g, '-')}>{m}</SelectItem>
+                      {Object.keys(MODEL_DISPLAY_MAP).map((m) => (
+                        <SelectItem key={m} value={m}>{MODEL_DISPLAY_MAP[m]}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
