@@ -96,6 +96,18 @@ export class ApiClient {
     return this.request('POST', '/api/v1/automation/input', { message });
   }
 
+  async plannerComplete(output: string): Promise<{ success: boolean; message?: string }> {
+    return this.request('POST', '/api/v1/automation/planner-complete', { output });
+  }
+
+  async builderComplete(success: boolean = true): Promise<{ success: boolean; message?: string }> {
+    return this.request('POST', '/api/v1/automation/builder-complete', { success });
+  }
+
+  async testerComplete(passed: boolean = true, error?: string): Promise<{ success: boolean; message?: string }> {
+    return this.request('POST', '/api/v1/automation/tester-complete', { passed, error });
+  }
+
   async connectWebSocket(): Promise<void> {
     log.info('WebSocket connection skipped in Electron main');
   }

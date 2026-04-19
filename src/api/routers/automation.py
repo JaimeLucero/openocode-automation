@@ -54,12 +54,97 @@ async def start_automation(request: AutomationStartRequest):
         tester_model=request.tester_model,
     )
 
+    engine.set_phase(Phase.PLANNING)
     set_active_engine(engine)
 
     return AutomationResponse(
         success=True,
-        message=f"Started session {session_id}",
+        message=f"Started session {session_id} in PLANNING phase",
         data={"session_id": session_id},
+    )
+
+
+@router.post("/planner-complete", response_model=AutomationResponse)
+async def planner_complete(request: dict):
+    """Handle planner completion - parse tickets and trigger builder."""
+    engine = get_active_engine()
+
+    if not engine:
+        return AutomationResponse(success=False, message="No automation running")
+
+    plan_output = request.get("output", "")
+    if not plan_output:
+        return AutomationResponse(success=False, message="No plan output provided")
+
+    tickets = engine.parse_plan(plan_output)
+    is_valid, issues = engine.validate_plan()
+
+    if not is_valid:
+        engine.set_phase(Phase.USER_INTERVENTION)
+        await broadcast({"type": "phase-changed", "phase": Phase.USER_INTERVENTION.value})
+        return AutomationResponse(success=False, message=f"Plan validation failed: {issues}")
+
+    engine.set_phase(Phase.IMPLEMENTING)
+    await broadcast({"type": "phase-changed", "phase": Phase.IMPLEMENTING.value})
+
+    return AutomationResponse(
+        success=True,
+        message=f"Plan validated with {len(tickets)} tickets. Starting implementation.",
+        data={"tickets": len(tickets)},
+    )
+
+
+@router.post("/builder-complete", response_model=AutomationResponse)
+async def builder_complete(request: dict):
+    """Handle builder completion - mark implementing done and trigger tester."""
+    engine = get_active_engine()
+
+    if not engine:
+        return AutomationResponse(success=False, message="No automation running")
+
+    success = engine.mark_implementing()
+    if not success:
+        return AutomationResponse(success=False, message="Cannot transition to testing phase")
+
+    engine.set_phase(Phase.TESTING)
+    await broadcast({"type": "phase-changed", "phase": Phase.TESTING.value})
+
+    return AutomationResponse(
+        success=True,
+        message="Implementation complete. Starting tests.",
+    )
+
+
+@router.post("/tester-complete", response_model=AutomationResponse)
+async def tester_complete(request: dict):
+    """Handle tester completion - move to next ticket or complete."""
+    engine = get_active_engine()
+
+    if not engine:
+        return AutomationResponse(success=False, message="No automation running")
+
+    test_passed = request.get("passed", False)
+    error = request.get("error", "")
+
+    if test_passed:
+        engine.mark_test_passed()
+    else:
+        engine.handle_test_failure(error)
+
+    current_phase = engine.machine.current_phase
+
+    if current_phase == Phase.COMPLETED:
+        await broadcast({"type": "phase-changed", "phase": Phase.COMPLETED.value})
+        if engine.session_id:
+            db.update_session_status(engine.session_id, "completed")
+        return AutomationResponse(success=True, message="All tickets completed!")
+
+    engine.set_phase(Phase.IMPLEMENTING)
+    await broadcast({"type": "phase-changed", "phase": Phase.IMPLEMENTING.value})
+
+    return AutomationResponse(
+        success=True,
+        message="Tests passed. Starting next ticket.",
     )
 
 
