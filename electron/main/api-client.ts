@@ -76,6 +76,10 @@ export class ApiClient {
     return this.request('POST', '/api/v1/automation/stop');
   }
 
+  async forceStopAutomation(): Promise<{ success: boolean; message?: string }> {
+    return this.request('POST', '/api/v1/automation/force-stop');
+  }
+
   async pauseAutomation(): Promise<{ success: boolean; message?: string }> {
     return this.request('POST', '/api/v1/automation/pause');
   }
@@ -93,6 +97,10 @@ export class ApiClient {
   }
 
   async connectWebSocket(): Promise<void> {
+    log.info('WebSocket connection skipped in Electron main');
+  }
+
+  async _connectWebSocketOld(): Promise<void> {
     return new Promise((resolve, reject) => {
       const wsUrl = this.baseUrl.replace('http', 'ws') + '/api/v1/automation/ws';
 

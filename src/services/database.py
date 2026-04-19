@@ -132,13 +132,17 @@ def update_session_phase(session_id: int, phase: str) -> dict[str, Any]:
 def update_session_status(session_id: int, status: str) -> dict[str, Any]:
     """Update session status."""
     db = get_db()
-    completed_at = "NOW()" if status in ("completed", "aborted", "failed") else "NULL"
-    query = f"""
-        UPDATE sessions SET status = %s, updated_at = NOW(), completed_at = {completed_at}
-        WHERE id = %s
-        RETURNING *
-    """
-    return db.execute_one(query, (status, session_id))
+    if status in ("completed", "aborted", "failed"):
+        result = db.execute_one(
+            "UPDATE sessions SET status = %s, phase = 'stopped', updated_at = NOW(), completed_at = NOW() WHERE id = %s RETURNING *",
+            (status, session_id),
+        )
+    else:
+        result = db.execute_one(
+            "UPDATE sessions SET status = %s, updated_at = NOW() WHERE id = %s RETURNING *",
+            (status, session_id),
+        )
+    return result
 
 
 def delete_session(session_id: int) -> bool:

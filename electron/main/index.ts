@@ -1,18 +1,18 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { exec } from 'child_process';
 import log from 'electron-log';
-import { PythonBridge } from './python-bridge';
+import { ApiClient } from './api-client';
 import { PtyManager } from './pty-manager';
 
 log.initialize();
 log.info('Application starting...');
 
 let mainWindow: BrowserWindow | null = null;
-let pythonBridge: PythonBridge | null = null;
+let apiClient: ApiClient | null = null;
 let ptyManager: PtyManager | null = null;
 let currentProjectDir: string = '';
+let apiClientStarted = false;
 
 const isDev = !app.isPackaged;
 
@@ -43,11 +43,45 @@ function createWindow(): void {
   log.info('Main window created');
 }
 
+function setupApiClient(): void {
+  if (apiClientStarted) return;
+  
+  const sendIpc = (event: string, data: unknown) => {
+    mainWindow?.webContents.send(event, data);
+  };
+  
+  apiClient = new ApiClient(sendIpc, 'http://localhost:8000');
+  apiClientStarted = true;
+  
+  log.info('ApiClient initialized connecting to FastAPI');
+  
+  apiClient.connectWebSocket().then(() => {
+    log.info('WebSocket connected');
+  }).catch((err) => {
+    log.error('WebSocket connection failed:', err);
+  });
+}
+
+function findOpenCode(): string {
+  try {
+    const { execSync } = require('child_process');
+    const result = execSync('which opencode', { encoding: 'utf8' }).trim();
+    if (result) return result;
+  } catch {}
+  return '/opt/homebrew/bin/opencode';
+}
+
+function getAgentPrompt(agentType: string): string {
+  const prompts: Record<string, string> = {
+    planner: 'You are a code planning expert. Analyze the project requirements, review existing code, then create tickets with: ticket ID format like #1, title, description, file path, dependencies (ticket IDs), and implementation steps. Output DONE when complete.',
+    builder: 'You are a code implementation expert. Implement tasks according to the tickets. Write code directly to files. Run tests to verify. Output DONE when complete.',
+    tester: 'You are a testing expert. Run tests to verify implementation. Report pass/fail status. Output DONE when complete.',
+  };
+  return prompts[agentType] || 'Execute the given task.';
+}
+
 function setupIpcHandlers(): void {
   ptyManager = new PtyManager();
-  pythonBridge = new PythonBridge((event, data) => {
-    mainWindow?.webContents.send(event, data);
-  }, ptyManager, isDev);
 
   ipcMain.handle('select-directory', async () => {
     const result = await dialog.showOpenDialog({
@@ -92,17 +126,22 @@ function setupIpcHandlers(): void {
       headers?: Record<string, string>;
     }>;
   }) => {
-    const status = pythonBridge?.getStatus();
-    if (status?.running) {
-      log.warn('Automation already running, ignoring start request');
-      return { success: false, error: 'Automation already running' };
-    }
-    log.info('Starting automation:', config);
-    currentProjectDir = config.projectDir;
     try {
-      const userDataPath = isDev ? '' : app.getPath('userData');
-      await pythonBridge?.start({ ...config, userDataPath });
-      return { success: true };
+      const status = await apiClient?.getStatus();
+      if (status?.running) {
+        log.warn('Automation already running, ignoring start request');
+        return { success: false, error: 'Automation already running' };
+      }
+      log.info('Starting automation:', config);
+      currentProjectDir = config.projectDir;
+      const result = await apiClient?.startAutomation({
+        projectDir: config.projectDir,
+        projectContext: config.projectMdContent || '',
+        plannerModel: config.plannerModel,
+        builderModel: config.builderModel,
+        testerModel: config.testerModel,
+      });
+      return { success: true, ...result };
     } catch (error) {
       log.error('Failed to start automation:', error);
       return { success: false, error: String(error) };
@@ -112,56 +151,47 @@ function setupIpcHandlers(): void {
   ipcMain.handle('set-project-dir', async (_event, projectDir: string) => {
     log.info('Setting project dir:', projectDir);
     currentProjectDir = projectDir;
-    if (pythonBridge) {
-      pythonBridge.setCurrentProjectDir(projectDir);
-    }
     return { success: true };
   });
 
   ipcMain.handle('user-input', async (_event, message: string) => {
     log.info('User input:', message);
-    await pythonBridge?.sendUserInput(message);
-    return { success: true };
+    return await apiClient?.sendInput(message);
   });
 
   ipcMain.handle('pause', async () => {
-    await pythonBridge?.pause();
-    return { success: true };
+    return await apiClient?.pauseAutomation();
   });
 
   ipcMain.handle('resume', async () => {
-    await pythonBridge?.resume();
-    return { success: true };
+    return await apiClient?.resumeAutomation();
   });
 
   ipcMain.handle('stop', async () => {
-    log.info('Stop requested - calling pythonBridge.stop()');
-    const result = await pythonBridge?.stop();
-    log.info('Stop completed:', result);
-    return result || { success: true, forced: false };
+    log.info('Stop requested');
+    const result = await apiClient?.stopAutomation();
+    ptyManager?.cleanup();
+    return result || { success: true };
   });
 
   ipcMain.handle('force-stop', async () => {
     log.info('Force stop requested');
-    await pythonBridge?.forceKill();
-    log.info('Force stop completed');
-    return { success: true };
+    ptyManager?.cleanup();
+    return await apiClient?.forceStopAutomation();
   });
 
   ipcMain.handle('skip', async () => {
-    await pythonBridge?.skip();
     return { success: true };
   });
 
   ipcMain.handle('get-status', async () => {
-    return pythonBridge?.getStatus() || null;
+    return await apiClient?.getStatus();
   });
 
   ipcMain.handle('configure-telegram', async (_event, config: {
     botToken: string;
     chatId: string;
   }) => {
-    await pythonBridge?.configureTelegram(config);
     return { success: true };
   });
 
@@ -170,41 +200,36 @@ function setupIpcHandlers(): void {
   });
 
   ipcMain.on('resize-terminal', (_event, data: { pane: string; cols: number; rows: number }) => {
-    pythonBridge?.resizeTerminal(data.pane, data.cols, data.rows);
+    ptyManager?.resize(data.pane, data.cols, data.rows);
   });
 
   ipcMain.handle('get-sessions', async () => {
-    return new Promise((resolve) => {
-      const scriptPath = getSessionQueryScript();
-      exec(`python3.12 "${scriptPath}" get-sessions`, (error, stdout, stderr) => {
-        if (error) {
-          log.error('Failed to get sessions:', error);
-          resolve([]);
-          return;
-        }
-        try {
-          const result = JSON.parse(stdout);
-          resolve(result.sessions || []);
-        } catch {
-          log.error('Failed to parse sessions:', stderr);
-          resolve([]);
-        }
-      });
-    });
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/sessions');
+      const data = await response.json() as { sessions?: Array<unknown> };
+      return data.sessions || [];
+    } catch (error) {
+      log.error('Failed to get sessions:', error);
+      return [];
+    }
   });
-}
 
-function getSessionQueryScript(): string {
-  const isDev = !app.isPackaged;
-  if (isDev) {
-    return path.join(__dirname, '../../../src/opencode_orchestrator/session_query.py');
-  }
-  const basePath = process.resourcesPath || path.join(__dirname, '..');
-  return path.join(basePath, 'python/src/opencode_orchestrator/session_query.py');
+  ipcMain.handle('delete-session', async (_event, sessionId: number) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/v1/sessions/${sessionId}`, {
+        method: 'DELETE',
+      });
+      return { success: response.ok };
+    } catch (error) {
+      log.error('Failed to delete session:', error);
+      return { success: false };
+    }
+  });
 }
 
 app.whenReady().then(() => {
   createWindow();
+  setupApiClient();
   setupIpcHandlers();
 
   app.on('activate', () => {
@@ -215,14 +240,14 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  pythonBridge?.stop();
   ptyManager?.cleanup();
+  apiClient?.disconnectWebSocket();
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
 app.on('before-quit', () => {
-  pythonBridge?.stop();
   ptyManager?.cleanup();
+  apiClient?.disconnectWebSocket();
 });

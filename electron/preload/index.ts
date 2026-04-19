@@ -46,6 +46,7 @@ export interface ElectronAPI {
   skip: () => Promise<{ success: boolean }>;
   getStatus: () => Promise<unknown>;
   configureTelegram: (config: { botToken: string; chatId: string }) => Promise<{ success: boolean }>;
+  deleteSession: (sessionId: number) => Promise<{ success: boolean }>;
   sendTerminalInput: (pane: string, input: string) => void;
   resizeTerminal: (pane: string, cols: number, rows: number) => void;
   getSessions: () => Promise<Session[]>;
@@ -79,6 +80,7 @@ const api: ElectronAPI = {
   skip: () => ipcRenderer.invoke('skip'),
   getStatus: () => ipcRenderer.invoke('get-status'),
   configureTelegram: (config) => ipcRenderer.invoke('configure-telegram', config),
+  deleteSession: (sessionId) => ipcRenderer.invoke('delete-session', sessionId),
   sendTerminalInput: (pane, input) => ipcRenderer.send('terminal-input', pane, input),
   resizeTerminal: (pane, cols, rows) => ipcRenderer.send('resize-terminal', { pane, cols, rows }),
   getSessions: () => ipcRenderer.invoke('get-sessions'),

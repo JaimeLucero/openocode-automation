@@ -75,11 +75,52 @@ async def stop_automation():
         )
 
     engine.stop()
+    set_active_engine(None)
     await broadcast({"type": "automation-stopped"})
 
     return AutomationResponse(
         success=True,
         message="Automation stopped",
+    )
+
+
+@router.post("/force-stop", response_model=AutomationResponse)
+async def force_stop_automation():
+    """Force stop automation immediately."""
+    engine = get_active_engine()
+
+    if not engine:
+        return AutomationResponse(
+            success=False,
+            message="No automation running",
+        )
+
+    session_id = engine.session_id
+    print(f"[FORCE STOP] session_id={session_id}, running={engine.is_running}")
+
+    try:
+        if engine._thread and engine._thread.is_alive():
+            engine._thread.terminate()
+    except Exception as e:
+        print(f"[FORCE STOP] Thread terminate error: {e}")
+
+    engine._running = False
+    engine._paused = False
+
+    if session_id:
+        try:
+            print(f"[FORCE STOP] Updating session {session_id} to aborted")
+            db.update_session_status(session_id, "aborted")
+            print(f"[FORCE STOP] Session {session_id} updated to aborted")
+        except Exception as e:
+            print(f"[FORCE STOP] DB update error: {e}")
+
+    set_active_engine(None)
+    await broadcast({"type": "automation-stopped"})
+
+    return AutomationResponse(
+        success=True,
+        message="Automation force stopped",
     )
 
 

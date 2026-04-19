@@ -33,6 +33,10 @@ class OrchestrationEngine:
         return self._session_id
 
     @property
+    def phase(self) -> str:
+        return self._machine.current_phase.value
+
+    @property
     def is_running(self) -> bool:
         return self._running
 

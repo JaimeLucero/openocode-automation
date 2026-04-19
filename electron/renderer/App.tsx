@@ -254,6 +254,7 @@ export default function App() {
       sessions={sessions}
       onNewAutomation={handleNewAutomation}
       onSelectSession={handleSelectSession}
+      onDeleted={loadSessions}
       hasActiveSession={hasActiveSession}
     />;
   }

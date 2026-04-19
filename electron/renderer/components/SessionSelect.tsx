@@ -1,7 +1,8 @@
-import { Plus, Calendar } from 'lucide-react';
+import { Plus, Calendar, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useDeleteSession } from '@/api/hooks';
 
 export interface Session {
   id: number;
@@ -20,10 +21,12 @@ interface SessionSelectProps {
   sessions: Session[];
   onNewAutomation: () => void;
   onSelectSession: (session: Session) => void;
+  onDeleted?: () => void;
   hasActiveSession: boolean;
 }
 
-export function SessionSelect({ sessions, onNewAutomation, onSelectSession, hasActiveSession }: SessionSelectProps) {
+export function SessionSelect({ sessions, onNewAutomation, onSelectSession, onDeleted, hasActiveSession }: SessionSelectProps) {
+  const deleteSession = useDeleteSession();
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -73,9 +76,32 @@ export function SessionSelect({ sessions, onNewAutomation, onSelectSession, hasA
                           {session.project_dir}
                         </CardDescription>
                       </div>
-                      <Badge variant={getStatusVariant(session.status)}>
-                        {formatStatus(session.status)}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={getStatusVariant(session.status)}>
+                          {formatStatus(session.status)}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`Delete session "${session.project_name}"? This cannot be undone.`)) {
+                              deleteSession.mutate(session.id, {
+                                onSuccess: () => {
+                                  onDeleted?.();
+                                },
+                                onError: (error) => {
+                                  alert(`Failed to delete: ${error}`);
+                                },
+                              });
+                            }
+                          }}
+                          disabled={deleteSession.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardFooter className="pt-2">
