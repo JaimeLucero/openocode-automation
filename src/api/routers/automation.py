@@ -14,6 +14,7 @@ from api.schemas.automation import (
 from orchestration.engine import (
     OrchestrationEngine,
     get_active_engine,
+    get_or_create_engine,
     set_active_engine,
 )
 from orchestration.errors import SessionNotFound
@@ -38,13 +39,7 @@ async def broadcast(message: dict) -> None:
 @router.post("/start", response_model=AutomationResponse)
 async def start_automation(request: AutomationStartRequest):
     """Start new automation session."""
-    engine = get_active_engine()
-
-    if engine and engine.is_running:
-        return AutomationResponse(
-            success=False,
-            message="Automation already running",
-        )
+    engine = get_or_create_engine()
 
     session_id = engine.start(
         project_dir=request.project_dir,
@@ -56,6 +51,23 @@ async def start_automation(request: AutomationStartRequest):
 
     engine.set_phase(Phase.PLANNING)
     set_active_engine(engine)
+
+    await broadcast(
+        {
+            "type": "spawn-agent",
+            "agentType": "planner",
+            "projectDir": request.project_dir,
+            "model": request.planner_model,
+        }
+    )
+
+    await broadcast(
+        {
+            "type": "agent-command",
+            "agentType": "planner",
+            "command": f"Analyze this project and create tickets.",
+        }
+    )
 
     return AutomationResponse(
         success=True,

@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import log from 'electron-log';
-import { ApiClient } from './api-client';
+import { ApiClient, SpawnAgentMsg, AgentCommandMsg } from './api-client';
 import { PtyManager } from './pty-manager';
 
 log.initialize();
@@ -122,7 +122,8 @@ function spawnOpenCodeAgent(agentType: string, model: string, projectDir: string
 function setupIpcHandlers(): void {
   ptyManager = new PtyManager();
 
-  apiClient?.on('spawn-agent', (msg: { agentType: string; projectDir: string; model: string }) => {
+  apiClient?.on('spawn-agent', (data) => {
+    const msg = data as SpawnAgentMsg;
     log.info('Received spawn-agent:', msg);
     const prompt = getAgentPrompt(msg.agentType);
     spawnOpenCodeAgent(msg.agentType, msg.model, msg.projectDir, prompt, (output) => {
@@ -130,7 +131,8 @@ function setupIpcHandlers(): void {
     });
   });
 
-  apiClient?.on('agent-command', (msg: { agentType: string; command: string }) => {
+  apiClient?.on('agent-command', (data) => {
+    const msg = data as AgentCommandMsg;
     log.info(`Sending command to ${msg.agentType}:`, msg.command);
     ptyManager?.sendInput(msg.agentType, msg.command + '\n');
   });
@@ -179,11 +181,6 @@ function setupIpcHandlers(): void {
     }>;
   }) => {
     try {
-      const status = await apiClient?.getStatus();
-      if (status?.running) {
-        log.warn('Automation already running, ignoring start request');
-        return { success: false, error: 'Automation already running' };
-      }
       log.info('Starting automation:', config);
       currentProjectDir = config.projectDir;
       const result = await apiClient?.startAutomation({

@@ -25,11 +25,25 @@ interface Status {
 
 type IpcSender = (event: string, data: unknown) => void;
 
+type MessageHandler = (data: unknown) => void;
+
+export interface SpawnAgentMsg {
+  agentType: string;
+  projectDir: string;
+  model: string;
+}
+
+export interface AgentCommandMsg {
+  agentType: string;
+  command: string;
+}
+
 export class ApiClient {
   private baseUrl: string;
   private sendIpc: IpcSender;
   private ws: WebSocket | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
+  private handlers: Map<string, MessageHandler[]> = new Map();
 
   constructor(sendIpc: IpcSender, baseUrl: string = 'http://localhost:8000') {
     this.sendIpc = sendIpc;
@@ -109,7 +123,45 @@ export class ApiClient {
   }
 
   async connectWebSocket(): Promise<void> {
-    log.info('WebSocket connection skipped in Electron main');
+    return new Promise((resolve, reject) => {
+      const wsUrl = this.baseUrl.replace('http', 'ws') + '/api/v1/automation/ws';
+      log.info('Connecting to WebSocket:', wsUrl);
+
+      try {
+        this.ws = new (require('ws'))(wsUrl);
+
+        this.ws.on('open', () => {
+          log.info('WebSocket connected');
+          if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+          }
+          resolve();
+        });
+
+        this.ws.on('message', (data: Buffer) => {
+          try {
+            const message = JSON.parse(data.toString());
+            this.handleWsMessage(message);
+          } catch (err) {
+            log.error('Failed to parse WebSocket message', err);
+          }
+        });
+
+        this.ws.on('close', () => {
+          log.info('WebSocket disconnected');
+          this.ws = null;
+          this.scheduleReconnect();
+        });
+
+        this.ws.on('error', (err: Error) => {
+          log.error('WebSocket error', err);
+        });
+      } catch (err) {
+        log.error('Failed to create WebSocket:', err);
+        reject(err);
+      }
+    });
   }
 
   async _connectWebSocketOld(): Promise<void> {
@@ -157,6 +209,12 @@ export class ApiClient {
     const message = data as { type: string; [key: string]: unknown };
 
     switch (message.type) {
+      case 'spawn-agent':
+        this.emit('spawn-agent', message);
+        break;
+      case 'agent-command':
+        this.emit('agent-command', message);
+        break;
       case 'terminal-output':
         this.sendIpc('terminal-output', { pane: message.pane, output: message.output });
         break;
@@ -208,6 +266,23 @@ export class ApiClient {
     if (this.ws) {
       this.ws.close();
       this.ws = null;
+    }
+  }
+
+  on(event: string, handler: MessageHandler): void {
+    const handlers = this.handlers.get(event) || [];
+    handlers.push(handler);
+    this.handlers.set(event, handlers);
+  }
+
+  emit(event: string, data: unknown): void {
+    const handlers = this.handlers.get(event) || [];
+    handlers.forEach(h => h(data));
+  }
+
+  sendMessage(message: { type: string; [key: string]: unknown }): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(message));
     }
   }
 }
