@@ -215,14 +215,16 @@ function setupIpcHandlers(): void {
   });
 
   ipcMain.handle('delete-session', async (_event, sessionId: number) => {
+    log.info('Delete session requested:', sessionId);
     try {
       const response = await fetch(`http://localhost:8000/api/v1/sessions/${sessionId}`, {
         method: 'DELETE',
       });
+      log.info('Delete response:', response.status, response.ok);
       return { success: response.ok };
     } catch (error) {
       log.error('Failed to delete session:', error);
-      return { success: false };
+      return { success: false, error: String(error) };
     }
   });
 }

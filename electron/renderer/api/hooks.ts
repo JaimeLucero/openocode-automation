@@ -180,9 +180,21 @@ export const useDeleteSession = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (sessionId: number) => window.api.deleteSession(sessionId),
+    mutationFn: async (sessionId: number) => {
+      console.log('[DELETE] Attempting to delete session:', sessionId);
+      const result = await window.api.deleteSession(sessionId);
+      console.log('[DELETE] Result:', result);
+      if (!result.success) {
+        throw new Error('Failed to delete session');
+      }
+      return result;
+    },
     onSuccess: () => {
+      console.log('[DELETE] Success, invalidating queries');
       queryClient.invalidateQueries({ queryKey: queryKeys.sessions });
+    },
+    onError: (error) => {
+      console.error('[DELETE] Error:', error);
     },
   });
 };

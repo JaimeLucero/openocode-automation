@@ -46,6 +46,50 @@ type Step = 'project' | 'models' | 'mcp' | 'telegram' | 'ready';
 
 const STEPS: Step[] = ['project', 'models', 'mcp', 'telegram', 'ready'];
 
+const MODEL_PROVIDER_MAP: Record<string, string> = {
+  'Kimi K2.5': 'opencode-go/kimi-k2.5',
+  'Kimi K2 0905': 'opencode-go/kimi-k2.5',
+  'Kimi K2 Thinking': 'opencode-go/kimi-k2.5',
+  'GLM-5': 'opencode-go/glm-5',
+  'GLM-5.1': 'opencode-go/glm-5.1',
+  'GLM-4.6': 'opencode-go/glm-4.6',
+  'GLM-4.7': 'opencode-go/glm-4.7',
+  'Mimo-V2-Pro': 'opencode-go/mimo-v2-pro',
+  'Mimo-V2-Omni': 'opencode-go/mimo-v2-omni',
+  'MiniMax M2.5': 'opencode-go/minimax-m2.5',
+  'MiniMax M2.7': 'opencode-go/minimax-m2.7',
+  'MiniMax M2.1': 'opencode-go/minimax-m2.5',
+  'MiniMax M2': 'opencode-go/minimax-m2.5',
+  'MiniMax M2.5 Free': 'opencode/minimax-m2.5-free',
+  'Qwen3.5 Plus': 'opencode-go/qwen3.5-plus',
+  'Qwen3.6 Plus': 'opencode-go/qwen3.6-plus',
+  'Big Pickle': 'opencode/big-pickle',
+  'Stealth': 'opencode/big-pickle',
+  'Claude Haiku 4.5': 'anthropic/claude-haiku-4.5',
+  'Claude Opus 4.1': 'anthropic/claude-opus-4.1',
+  'Claude Opus 4.5': 'anthropic/claude-opus-4.5',
+  'Claude Opus 4.6': 'anthropic/claude-opus-4.6',
+  'Claude Opus 4.7': 'anthropic/claude-opus-4.7',
+  'Claude Sonnet 4': 'anthropic/claude-sonnet-4',
+  'Claude Sonnet 4.5': 'anthropic/claude-sonnet-4.5',
+  'Claude Sonnet 4.6': 'anthropic/claude-sonnet-4.6',
+  'GPT-5': 'openai/gpt-5',
+  'GPT-5 Codex': 'openai/gpt-5-codex',
+  'GPT-5 Nano': 'opencode/gpt-5-nano',
+  'GPT-4o': 'openai/gpt-4o',
+  'GPT-4o Mini': 'openai/gpt-4o-mini',
+  'GPT-4.5': 'openai/gpt-4.5',
+  'Gemini 3 Flash': 'google/gemini-3-flash',
+  'Gemini 3 Pro': 'google/gemini-3-pro',
+  'Gemini 3.1 Pro': 'google/gemini-3.1-pro',
+  'Nemotron 3 Super Free': 'opencode/nemotron-3-super-free',
+  'Trinity Large Preview': 'openai/trinity-large-preview',
+};
+
+function getOpenCodeModel(uiModel: string): string {
+  return MODEL_PROVIDER_MAP[uiModel] || uiModel;
+}
+
 const MODELS = [
   'Kimi K2.5',
   'Kimi K2 0905',
@@ -206,9 +250,9 @@ export function Onboarding({ onStart, error }: OnboardingProps) {
     const mcpServers = getMcpServersConfig();
     onStart({
       projectDir,
-      plannerModel,
-      builderModel,
-      testerModel,
+      plannerModel: getOpenCodeModel(plannerModel),
+      builderModel: getOpenCodeModel(builderModel),
+      testerModel: getOpenCodeModel(testerModel),
       opencodeKey: opencodeKey || undefined,
       telegramToken: telegramToken || undefined,
       chatId: chatId || undefined,
