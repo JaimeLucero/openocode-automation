@@ -15,6 +15,7 @@ class Ticket:
     id: int
     title: str
     file_path: str = ""
+    description: str = ""
     dependencies: List[int] = field(default_factory=list)
     steps: List[str] = field(default_factory=list)
     status: TicketStatus = TicketStatus.PENDING
@@ -121,51 +122,132 @@ class StateMachine:
         import re
 
         tickets = []
-        current_ticket = None
-        current_steps = []
-
         lines = plan_output.split("\n")
-        for line in lines:
-            line = line.strip()
+        print(f"[parse_plan] Total lines: {len(lines)}")
 
-            if line.startswith("## Ticket") or line.startswith("## ticket"):
-                if current_ticket:
-                    current_ticket.steps = current_steps
-                    tickets.append(current_ticket)
+        # Try markdown format first: ## #1: Title or ## Ticket #1
+        current_ticket = None
+        current_description = ""
+        current_file_path = ""
+        current_dependencies: List[int] = []
+        current_steps: List[str] = []
 
-                match = re.search(r"(?:Ticket\s+)?(\d+)[\s:-]+(.+)", line, re.IGNORECASE)
-                if match:
-                    ticket_id = int(match.group(1))
-                    title = match.group(2).strip()
-                    current_ticket = Ticket(id=ticket_id, title=title)
-                    current_steps = []
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
 
-            elif current_ticket and line.startswith("**File**"):
-                match = re.search(r"\*\*File\*\*:\s*(.+)", line)
-                if match:
-                    current_ticket.file_path = match.group(1).strip()
+            # Ticket headers like #1 or ## 2 (no other text on line)
+            ticket_match = re.match(r"^#+\s*(\d+)\s*$", line)
+            if ticket_match:
+                ticket_id = int(ticket_match.group(1))
+                current_ticket = Ticket(id=ticket_id, title="")
+                current_description = ""
+                current_file_path = ""
+                current_dependencies = []
+                current_steps = []
+                print(f"[parse_plan] Found ticket starting: #{ticket_id}")
 
-            elif current_ticket and "**Dependencies**" in line:
-                match = re.search(r"\*\*Dependencies\*\*:\s*(.+)", line)
-                if match:
-                    deps = match.group(1).strip()
-                    if deps.lower() != "none":
-                        current_ticket.dependencies = [int(d) for d in re.findall(r"#?(\d+)", deps)]
+                # Look ahead for Title, File path, Dependencies, Implementation steps
+                i += 1
+                while i < len(lines):
+                    body_line = lines[i].strip()
 
-            elif current_ticket and "**Steps**" in line:
-                continue
+                    if body_line.startswith("**Title:**"):
+                        match = re.search(r"\*\*Title:\*\*\s*(.+)", body_line)
+                        if match:
+                            current_ticket.title = match.group(1).strip()
+                            print(f"[parse_plan] Title: {current_ticket.title[:50]}")
 
-            elif current_ticket and line:
-                step_match = re.match(r"^\d+[\.\)]\s*(.+)", line)
-                if step_match:
-                    current_steps.append(step_match.group(1).strip())
+                    elif body_line.startswith("**File path:**"):
+                        match = re.search(r"\*\*File path:\*\*\s*(.+)", body_line)
+                        if match:
+                            current_file_path = match.group(1).strip()
 
-        if current_ticket:
-            current_ticket.steps = current_steps
-            tickets.append(current_ticket)
+                    elif body_line.startswith("**Description:**"):
+                        match = re.search(r"\*\*Description:\*\*\s*(.+)", body_line)
+                        if match:
+                            current_description = match.group(1).strip()
+
+                    elif body_line.startswith("**Dependencies:**"):
+                        match = re.search(r"\*\*Dependencies:\*\*\s*(.+)", body_line)
+                        if match:
+                            deps = match.group(1).strip()
+                            if deps != "-" and deps.lower() != "none":
+                                current_dependencies = [
+                                    int(d) for d in re.findall(r"#?(\d+)", deps)
+                                ]
+
+                    elif body_line.startswith("**Implementation steps:**"):
+                        # Collect numbered steps
+                        i += 1
+                        while i < len(lines):
+                            step_line = lines[i].strip()
+                            step_match = re.match(r"^(\d+)[\.\)]\s*(.+)", step_line)
+                            if step_match:
+                                current_steps.append(step_match.group(2).strip())
+                            elif (
+                                step_line.startswith("**")
+                                or step_line.startswith("#")
+                                or not step_line
+                            ):
+                                break
+                            i += 1
+                        continue
+
+                    elif body_line.startswith("#") and re.match(r"^#+\s*\d+\s*$", body_line):
+                        # Next ticket started
+                        break
+
+                    i += 1
+
+                # Set collected values
+                current_ticket.description = current_description
+                current_ticket.file_path = current_file_path
+                current_ticket.dependencies = current_dependencies
+                current_ticket.steps = current_steps
+                tickets.append(current_ticket)
+                print(f"[parse_plan] Added ticket #{ticket_id} with {len(current_steps)} steps")
+                i -= 1  # Will be incremented at end of loop
+
+            i += 1
+
+        print(f"[parse_plan] Parsed {len(tickets)} tickets from markdown")
+
+        # If no tickets found, try pipe-separated format
+        if not tickets:
+            print("[parse_plan] Trying pipe-separated format...")
+            for line in lines:
+                line = line.strip()
+                if line.startswith("#") and "|" in line:
+                    parts = [p.strip() for p in line.split("|")]
+                    if len(parts) >= 4:
+                        try:
+                            ticket_id = int(parts[0].replace("#", "").strip())
+                            title = parts[1].strip()
+                            file_path = parts[3].strip() if parts[3].strip() else ""
+
+                            steps = []
+                            if len(parts) >= 5 and parts[5].strip():
+                                steps = [s.strip() for s in parts[5].split(",")]
+
+                            dependencies = []
+                            if (
+                                len(parts) >= 4
+                                and parts[4].strip()
+                                and parts[4].strip().lower() != "none"
+                            ):
+                                dependencies = [int(d) for d in re.findall(r"#?(\d+)", parts[4])]
+
+                            ticket = Ticket(id=ticket_id, title=title, file_path=file_path)
+                            ticket.steps = steps
+                            ticket.dependencies = dependencies
+                            tickets.append(ticket)
+                        except (ValueError, IndexError):
+                            continue
 
         self._tickets = tickets
         self._full_plan_output = plan_output
+        print(f"[parse_plan] Total parsed: {len(tickets)} tickets")
         return tickets
 
     def validate_plan(self) -> tuple[bool, str]:
@@ -175,17 +257,12 @@ class StateMachine:
         if not self._tickets:
             issues.append("No tickets found in plan output")
 
-        if not self._project_context:
-            issues.append("Missing project context")
-
         ticket_ids = {t.id for t in self._tickets}
         for ticket in self._tickets:
             if not ticket.title:
                 issues.append(f"Ticket #{ticket.id} missing title")
             if not ticket.file_path:
                 issues.append(f"Ticket #{ticket.id} missing file path")
-            if not ticket.steps:
-                issues.append(f"Ticket #{ticket.id} has no implementation steps")
             for dep in ticket.dependencies:
                 if dep not in ticket_ids:
                     issues.append(f"Ticket #{ticket.id} depends on non-existent Ticket #{dep}")

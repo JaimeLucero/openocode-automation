@@ -27,6 +27,9 @@ class OrchestrationEngine:
         self._thread: Optional[threading.Thread] = None
         self._project_dir: str = ""
         self._project_context: str = ""
+        self._planner_model: str = ""
+        self._builder_model: str = ""
+        self._tester_model: str = ""
 
     @property
     def session_id(self) -> Optional[int]:
@@ -39,6 +42,14 @@ class OrchestrationEngine:
     @property
     def is_running(self) -> bool:
         return self._running
+
+    @property
+    def builder_model(self) -> str:
+        return self._builder_model
+
+    @property
+    def tester_model(self) -> str:
+        return self._tester_model
 
     @property
     def machine(self) -> StateMachine:

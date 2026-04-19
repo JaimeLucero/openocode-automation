@@ -10,9 +10,9 @@ class AutomationStartRequest(BaseModel):
 
     project_dir: str
     project_context: str = ""
-    planner_model: str = "kimi-k2.5"
-    builder_model: str = "kimi-k2.5"
-    tester_model: str = "kimi-k2.5"
+    planner_model: str = ""
+    builder_model: str = ""
+    tester_model: str = ""
     telegram_token: Optional[str] = None
     telegram_chat_id: Optional[str] = None
 

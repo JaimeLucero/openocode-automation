@@ -166,14 +166,19 @@ def create_ticket(
     max_retries: int = 3,
 ) -> dict[str, Any]:
     """Create a new ticket."""
+    import json
+
     db = get_db()
+    # Convert lists to JSON strings for jsonb columns
+    deps_json = json.dumps(dependencies) if dependencies else None
+    steps_json = json.dumps(steps) if steps else None
     return db.execute_one(
         """
         INSERT INTO tickets (session_id, ticket_id, title, file_path, dependencies, steps, max_retries)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s::jsonb, %s::jsonb, %s)
         RETURNING *
         """,
-        (session_id, ticket_id, title, file_path, dependencies, steps, max_retries),
+        (session_id, ticket_id, title, file_path, deps_json, steps_json, max_retries),
     )
 
 

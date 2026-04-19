@@ -123,14 +123,18 @@ export class ApiClient {
   }
 
   async connectWebSocket(): Promise<void> {
+    if (this.ws) return;
+    
     return new Promise((resolve, reject) => {
       const wsUrl = this.baseUrl.replace('http', 'ws') + '/api/v1/automation/ws';
       log.info('Connecting to WebSocket:', wsUrl);
 
       try {
-        this.ws = new (require('ws'))(wsUrl);
+        const WebSocket = require('ws');
+        const ws = new WebSocket(wsUrl);
+        this.ws = ws;
 
-        this.ws.on('open', () => {
+        ws.on('open', () => {
           log.info('WebSocket connected');
           if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
@@ -139,7 +143,7 @@ export class ApiClient {
           resolve();
         });
 
-        this.ws.on('message', (data: Buffer) => {
+        ws.on('message', (data: Buffer) => {
           try {
             const message = JSON.parse(data.toString());
             this.handleWsMessage(message);
@@ -148,13 +152,13 @@ export class ApiClient {
           }
         });
 
-        this.ws.on('close', () => {
+        ws.on('close', () => {
           log.info('WebSocket disconnected');
           this.ws = null;
           this.scheduleReconnect();
         });
 
-        this.ws.on('error', (err: Error) => {
+        ws.on('error', (err: Error) => {
           log.error('WebSocket error', err);
         });
       } catch (err) {
@@ -281,8 +285,13 @@ export class ApiClient {
   }
 
   sendMessage(message: { type: string; [key: string]: unknown }): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(message));
+    if (this.ws) {
+      try {
+        const WS = require('ws');
+        if (this.ws.readyState === WS.OPEN) {
+          this.ws.send(JSON.stringify(message));
+        }
+      } catch {}
     }
   }
 }

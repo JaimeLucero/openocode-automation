@@ -41,23 +41,39 @@ async def start_automation(request: AutomationStartRequest):
     """Start new automation session."""
     engine = get_or_create_engine()
 
+    planner_model = request.planner_model or "opencode/minimax-m2.5-free"
+
     session_id = engine.start(
         project_dir=request.project_dir,
         project_context=request.project_context,
-        planner_model=request.planner_model,
-        builder_model=request.builder_model,
-        tester_model=request.tester_model,
+        planner_model=planner_model,
+        builder_model=request.builder_model or planner_model,
+        tester_model=request.tester_model or planner_model,
     )
 
     engine.set_phase(Phase.PLANNING)
+    db.update_session_status(session_id, "active")
     set_active_engine(engine)
+
+    await broadcast({"type": "phase-changed", "phase": Phase.PLANNING.value})
+    await broadcast(
+        {
+            "type": "progress",
+            "total": 0,
+            "completed": 0,
+            "failed": 0,
+            "pending": 0,
+            "currentTicket": None,
+            "message": "Planning...",
+        }
+    )
 
     await broadcast(
         {
             "type": "spawn-agent",
             "agentType": "planner",
             "projectDir": request.project_dir,
-            "model": request.planner_model,
+            "model": planner_model,
         }
     )
 
@@ -79,26 +95,77 @@ async def start_automation(request: AutomationStartRequest):
 @router.post("/planner-complete", response_model=AutomationResponse)
 async def planner_complete(request: dict):
     """Handle planner completion - parse tickets and trigger builder."""
+    print("[planner-complete] Starting...")
     engine = get_active_engine()
 
     if not engine:
+        print("[planner-complete] No active engine")
         return AutomationResponse(success=False, message="No automation running")
 
     plan_output = request.get("output", "")
+    print(f"[planner-complete] Plan output length: {len(plan_output)}")
+    print(f"[planner-complete] Plan output preview: {plan_output[:500]}")
     if not plan_output:
+        print("[planner-complete] No plan output provided")
         return AutomationResponse(success=False, message="No plan output provided")
 
     tickets = engine.parse_plan(plan_output)
+    print(f"[planner-complete] Parsed {len(tickets)} tickets")
+    for t in tickets:
+        print(
+            f"  - Ticket #{t.id}: {t.title}, file: {t.file_path}, steps: {len(t.steps)}, deps: {t.dependencies}"
+        )
+
     is_valid, issues = engine.validate_plan()
+    print(f"[planner-complete] Validation: valid={is_valid}, issues={issues}")
 
     if not is_valid:
+        print(f"[planner-complete] Plan validation FAILED: {issues}")
         engine.set_phase(Phase.USER_INTERVENTION)
         await broadcast({"type": "phase-changed", "phase": Phase.USER_INTERVENTION.value})
         return AutomationResponse(success=False, message=f"Plan validation failed: {issues}")
 
+    print(f"[planner-complete] Plan valid, transitioning to IMPLEMENTING...")
     engine.set_phase(Phase.IMPLEMENTING)
+    db.update_session_status(engine.session_id, "active")
+
+    print("[planner-complete] Broadcasting phase-changed...")
     await broadcast({"type": "phase-changed", "phase": Phase.IMPLEMENTING.value})
 
+    print(f"[planner-complete] Broadcasting progress: total={len(tickets)}, pending={len(tickets)}")
+    await broadcast(
+        {
+            "type": "progress",
+            "total": len(tickets),
+            "completed": 0,
+            "failed": 0,
+            "pending": len(tickets),
+            "currentTicket": tickets[0].id if tickets else None,
+        }
+    )
+
+    print("[planner-complete] Broadcasting spawn-agent for builder...")
+    await broadcast(
+        {
+            "type": "spawn-agent",
+            "agentType": "builder",
+            "projectDir": engine._project_dir,
+            "model": engine.builder_model,
+        }
+    )
+
+    if tickets:
+        command = f"Implement ticket #{tickets[0].id}: {tickets[0].title}. File: {tickets[0].file_path}. Steps: {', '.join(tickets[0].steps)}"
+        print(f"[planner-complete] Broadcasting agent-command: {command[:100]}...")
+        await broadcast(
+            {
+                "type": "agent-command",
+                "agentType": "builder",
+                "command": command,
+            }
+        )
+
+    print(f"[planner-complete] Done! Returning {len(tickets)} tickets")
     return AutomationResponse(
         success=True,
         message=f"Plan validated with {len(tickets)} tickets. Starting implementation.",
@@ -119,7 +186,27 @@ async def builder_complete(request: dict):
         return AutomationResponse(success=False, message="Cannot transition to testing phase")
 
     engine.set_phase(Phase.TESTING)
+    db.update_session_status(engine.session_id, "active")
     await broadcast({"type": "phase-changed", "phase": Phase.TESTING.value})
+
+    ticket = engine.machine.current_ticket
+    await broadcast(
+        {
+            "type": "spawn-agent",
+            "agentType": "tester",
+            "projectDir": engine._project_dir,
+            "model": engine.tester_model,
+        }
+    )
+
+    if ticket:
+        await broadcast(
+            {
+                "type": "agent-command",
+                "agentType": "tester",
+                "command": f"Test ticket #{ticket.id}: {ticket.title}. File: {ticket.file_path}",
+            }
+        )
 
     return AutomationResponse(
         success=True,
@@ -152,7 +239,27 @@ async def tester_complete(request: dict):
         return AutomationResponse(success=True, message="All tickets completed!")
 
     engine.set_phase(Phase.IMPLEMENTING)
+    db.update_session_status(engine.session_id, "active")
     await broadcast({"type": "phase-changed", "phase": Phase.IMPLEMENTING.value})
+
+    ticket = engine.machine.current_ticket
+    await broadcast(
+        {
+            "type": "spawn-agent",
+            "agentType": "builder",
+            "projectDir": engine._project_dir,
+            "model": engine.builder_model,
+        }
+    )
+
+    if ticket:
+        await broadcast(
+            {
+                "type": "agent-command",
+                "agentType": "builder",
+                "command": f"Implement ticket #{ticket.id}: {ticket.title}. File: {ticket.file_path}. Steps: {', '.join(ticket.steps)}",
+            }
+        )
 
     return AutomationResponse(
         success=True,

@@ -46,98 +46,43 @@ type Step = 'project' | 'models' | 'mcp' | 'telegram' | 'ready';
 
 const STEPS: Step[] = ['project', 'models', 'mcp', 'telegram', 'ready'];
 
+const MODEL_DISPLAY_MAP: Record<string, string> = {
+  'opencode/minimax-m2.5-free': 'MiniMax M2.5 Free',
+  'opencode/nemotron-3-super-free': 'Nemotron 3 Super Free',
+  'opencode/big-pickle': 'Big Pickle',
+  'opencode/gpt-5-nano': 'GPT-5 Nano',
+  'opencode-go/minimax-m2.5': 'MiniMax M2.5',
+  'opencode-go/minimax-m2.7': 'MiniMax M2.7',
+  'opencode-go/kimi-k2.5': 'Kimi K2.5',
+  'opencode-go/glm-5': 'GLM-5',
+  'opencode-go/glm-5.1': 'GLM-5.1',
+  'opencode-go/mimo-v2-pro': 'Mimo-V2-Pro',
+  'opencode-go/mimo-v2-omni': 'Mimo-V2-Omni',
+  'opencode-go/qwen3.5-plus': 'Qwen3.5 Plus',
+  'opencode-go/qwen3.6-plus': 'Qwen3.6 Plus',
+};
+
+const MODELS = Object.values(MODEL_DISPLAY_MAP);
+
 const MODEL_PROVIDER_MAP: Record<string, string> = {
-  'Kimi K2.5': 'opencode-go/kimi-k2.5',
-  'Kimi K2 0905': 'opencode-go/kimi-k2.5',
-  'Kimi K2 Thinking': 'opencode-go/kimi-k2.5',
-  'GLM-5': 'opencode-go/glm-5',
-  'GLM-5.1': 'opencode-go/glm-5.1',
-  'GLM-4.6': 'opencode-go/glm-4.6',
-  'GLM-4.7': 'opencode-go/glm-4.7',
-  'Mimo-V2-Pro': 'opencode-go/mimo-v2-pro',
-  'Mimo-V2-Omni': 'opencode-go/mimo-v2-omni',
+  'MiniMax M2.5 Free': 'opencode/minimax-m2.5-free',
+  'Nemotron 3 Super Free': 'opencode/nemotron-3-super-free',
+  'Big Pickle': 'opencode/big-pickle',
+  'GPT-5 Nano': 'opencode/gpt-5-nano',
   'MiniMax M2.5': 'opencode-go/minimax-m2.5',
   'MiniMax M2.7': 'opencode-go/minimax-m2.7',
-  'MiniMax M2.1': 'opencode-go/minimax-m2.5',
-  'MiniMax M2': 'opencode-go/minimax-m2.5',
-  'MiniMax M2.5 Free': 'opencode/minimax-m2.5-free',
+  'Kimi K2.5': 'opencode-go/kimi-k2.5',
+  'GLM-5': 'opencode-go/glm-5',
+  'GLM-5.1': 'opencode-go/glm-5.1',
+  'Mimo-V2-Pro': 'opencode-go/mimo-v2-pro',
+  'Mimo-V2-Omni': 'opencode-go/mimo-v2-omni',
   'Qwen3.5 Plus': 'opencode-go/qwen3.5-plus',
   'Qwen3.6 Plus': 'opencode-go/qwen3.6-plus',
-  'Big Pickle': 'opencode/big-pickle',
-  'Stealth': 'opencode/big-pickle',
-  'Claude Haiku 4.5': 'anthropic/claude-haiku-4.5',
-  'Claude Opus 4.1': 'anthropic/claude-opus-4.1',
-  'Claude Opus 4.5': 'anthropic/claude-opus-4.5',
-  'Claude Opus 4.6': 'anthropic/claude-opus-4.6',
-  'Claude Opus 4.7': 'anthropic/claude-opus-4.7',
-  'Claude Sonnet 4': 'anthropic/claude-sonnet-4',
-  'Claude Sonnet 4.5': 'anthropic/claude-sonnet-4.5',
-  'Claude Sonnet 4.6': 'anthropic/claude-sonnet-4.6',
-  'GPT-5': 'openai/gpt-5',
-  'GPT-5 Codex': 'openai/gpt-5-codex',
-  'GPT-5 Nano': 'opencode/gpt-5-nano',
-  'GPT-4o': 'openai/gpt-4o',
-  'GPT-4o Mini': 'openai/gpt-4o-mini',
-  'GPT-4.5': 'openai/gpt-4.5',
-  'Gemini 3 Flash': 'google/gemini-3-flash',
-  'Gemini 3 Pro': 'google/gemini-3-pro',
-  'Gemini 3.1 Pro': 'google/gemini-3.1-pro',
-  'Nemotron 3 Super Free': 'opencode/nemotron-3-super-free',
-  'Trinity Large Preview': 'openai/trinity-large-preview',
 };
 
 function getOpenCodeModel(uiModel: string): string {
   return MODEL_PROVIDER_MAP[uiModel] || uiModel;
 }
-
-const MODELS = [
-  'Kimi K2.5',
-  'Kimi K2 0905',
-  'Kimi K2 Thinking',
-  'GLM-5',
-  'GLM-5.1',
-  'GLM-4.6',
-  'GLM-4.7',
-  'Mimo-V2-Pro',
-  'Mimo-V2-Omni',
-  'MiniMax M2.5',
-  'MiniMax M2.7',
-  'MiniMax M2.1',
-  'MiniMax M2',
-  'MiniMax M2.5 Free',
-  'Qwen3.5 Plus',
-  'Qwen3.6 Plus',
-  'Big Pickle',
-  'Stealth',
-  'Claude Haiku 4.5',
-  'Claude Opus 4.1',
-  'Claude Opus 4.5',
-  'Claude Opus 4.6',
-  'Claude Opus 4.7',
-  'Claude Sonnet 4',
-  'Claude Sonnet 4.5',
-  'Claude Sonnet 4.6',
-  'GPT 5',
-  'GPT 5 Codex',
-  'GPT 5 Nano',
-  'GPT 5.1',
-  'GPT 5.1 Codex',
-  'GPT 5.1 Codex Max',
-  'GPT 5.1 Codex Mini',
-  'GPT 5.2',
-  'GPT 5.2 Codex',
-  'GPT 5.3 Codex',
-  'GPT 5.3 Codex Spark',
-  'GPT 5.4',
-  'GPT 5.4 Mini',
-  'GPT 5.4 Nano',
-  'GPT 5.4 Pro',
-  'Gemini 3 Flash',
-  'Gemini 3 Pro',
-  'Gemini 3.1 Pro',
-  'Nemotron 3 Super Free',
-  'Trinity Large Preview',
-];
 
 const PRESET_MCP_SERVERS = [
   {
@@ -178,9 +123,9 @@ export function Onboarding({ onStart, error }: OnboardingProps) {
   const [projectMdError, setProjectMdError] = useState('');
   const [telegramToken, setTelegramToken] = useState('');
   const [chatId, setChatId] = useState('');
-  const [plannerModel, setPlannerModel] = useState('kimi-k2.5');
-  const [builderModel, setBuilderModel] = useState('kimi-k2.5');
-  const [testerModel, setTesterModel] = useState('kimi-k2.5');
+  const [plannerModel, setPlannerModel] = useState('MiniMax M2.5 Free');
+  const [builderModel, setBuilderModel] = useState('MiniMax M2.5 Free');
+  const [testerModel, setTesterModel] = useState('MiniMax M2.5 Free');
   const [opencodeKey, setOpencodeKey] = useState('');
   const [selectedMcpServers, setSelectedMcpServers] = useState<Set<string>>(new Set());
   const [customMcpName, setCustomMcpName] = useState('');
@@ -247,6 +192,8 @@ export function Onboarding({ onStart, error }: OnboardingProps) {
   const canProceedFromProject = projectDir && !projectMdError && projectMdContent;
 
   const handleStart = () => {
+    console.log('handleStart called', step);
+    setStep('ready');
     const mcpServers = getMcpServersConfig();
     onStart({
       projectDir,
@@ -549,7 +496,24 @@ export function Onboarding({ onStart, error }: OnboardingProps) {
                 Skip
               </Button>
             )}
-            {step !== 'ready' && step !== 'mcp' && (
+            {step === 'telegram' && (
+              <Button variant="outline" onClick={goNext}>
+                {telegramToken || chatId ? 'Next' : 'Skip'}
+              </Button>
+            )}
+            {step === 'telegram' && telegramToken && !chatId && (
+              <Button onClick={goNext}>
+                Add Chat ID first
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </Button>
+            )}
+            {step === 'telegram' && !telegramToken && chatId && (
+              <Button onClick={goNext}>
+                Add Bot Token first
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </Button>
+            )}
+            {step !== 'ready' && step !== 'mcp' && step !== 'telegram' && (
               <Button onClick={goNext}>
                 Next
                 <ArrowRight className="h-4 w-4 ml-1" />

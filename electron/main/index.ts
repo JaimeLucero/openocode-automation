@@ -71,38 +71,58 @@ function findOpenCode(): string {
   return '/opt/homebrew/bin/opencode';
 }
 
+const SKILLS: Record<string, string> = {
+  planner: 'npx @smithery/cli@latest skill add shubhamsaboo/project-planner',
+  builder: 'npx @smithery/cli@latest skill add jarredkenny/frontend-design && npx @smithery/cli@latest skill add skillcreatorai/backend-development',
+  tester: 'npx @smithery/cli@latest skill add comet-ml/playwright-e2e',
+};
+
 function getAgentPrompt(agentType: string): string {
   const prompts: Record<string, string> = {
-    planner: 'You are a code planning expert. Analyze the project requirements, review existing code, then create tickets with: ticket ID format like #1, title, description, file path, dependencies (ticket IDs), and implementation steps. Output DONE when complete.',
+    planner: `Create tickets for this project. Format:
+#1
+**Title:** <title>
+**File path:** 
+**Dependencies:** <#1,#2 or ->
+**Implementation steps:**
+1. step one
+2. step two
+
+#2
+... OUTPUT DONE`,
     builder: 'You are a code implementation expert. Implement tasks according to the tickets. Write code directly to files. Run tests to verify. Output DONE when complete.',
     tester: 'You are a testing expert. Run tests to verify implementation. Report pass/fail status. Output DONE when complete.',
   };
   return prompts[agentType] || 'Execute the given task.';
 }
 
-let currentAgent: string | null = null;
-
 function spawnOpenCodeAgent(agentType: string, model: string, projectDir: string, prompt: string, onOutput: (output: string) => void) {
   const opencodePath = findOpenCode();
-  const fullModel = model.includes('/') ? model : `opencode-go/${model}`;
+  const fullModel = model.includes('/') ? model : `opencode/${model}`;
   
-  log.info(`Spawning ${agentType} with model ${fullModel}`);
+  // For builder and tester, prompt comes via agent-command from backend
+  // For planner, we pass the prompt directly via CLI
+  const cliPrompt = agentType === 'planner' ? prompt : '';
+  
+  log.info(`Spawning ${agentType} with model ${fullModel}, prompt: ${cliPrompt ? cliPrompt.substring(0, 50) + '...' : '(from backend)'}`);
   
   ptyManager?.spawn(
     agentType,
     opencodePath,
-    ['run', '-m', fullModel, '--prompt', prompt],
+    ['run', cliPrompt, '-m', fullModel],
     projectDir,
-    (output: string) => {
+    (output) => {
       onOutput(output);
       mainWindow?.webContents.send('terminal-output', { pane: agentType, output });
-      
-      if (output.includes('DONE') || output.includes('✓') || output.includes('All tasks completed')) {
-        log.info(`${agentType} completed, signaling backend`);
+    },
+    (exitCode, fullOutput) => {
+      log.info(`PTY ${agentType} exited with code ${exitCode}, output length: ${fullOutput.length}`);
+      if (exitCode === 0) {
+        log.info(`${agentType} completed successfully, signaling backend`);
         setTimeout(async () => {
           try {
             if (agentType === 'planner') {
-              await apiClient?.plannerComplete(output);
+              await apiClient?.plannerComplete(fullOutput);
             } else if (agentType === 'builder') {
               await apiClient?.builderComplete(true);
             } else if (agentType === 'tester') {
@@ -115,8 +135,6 @@ function spawnOpenCodeAgent(agentType: string, model: string, projectDir: string
       }
     }
   );
-  
-  currentAgent = agentType;
 }
 
 function setupIpcHandlers(): void {
@@ -131,6 +149,7 @@ function setupIpcHandlers(): void {
     });
   });
 
+  // Handle agent commands from backend (builder/tester phases after planner)
   apiClient?.on('agent-command', (data) => {
     const msg = data as AgentCommandMsg;
     log.info(`Sending command to ${msg.agentType}:`, msg.command);
