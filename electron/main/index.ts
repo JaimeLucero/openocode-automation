@@ -80,8 +80,60 @@ function getAgentPrompt(agentType: string): string {
   return prompts[agentType] || 'Execute the given task.';
 }
 
+let currentAgent: string | null = null;
+
+function spawnOpenCodeAgent(agentType: string, model: string, projectDir: string, prompt: string, onOutput: (output: string) => void) {
+  const opencodePath = findOpenCode();
+  const fullModel = model.includes('/') ? model : `opencode-go/${model}`;
+  
+  log.info(`Spawning ${agentType} with model ${fullModel}`);
+  
+  ptyManager?.spawn(
+    agentType,
+    opencodePath,
+    ['run', '-m', fullModel, '--prompt', prompt],
+    projectDir,
+    (output: string) => {
+      onOutput(output);
+      mainWindow?.webContents.send('terminal-output', { pane: agentType, output });
+      
+      if (output.includes('DONE') || output.includes('✓') || output.includes('All tasks completed')) {
+        log.info(`${agentType} completed, signaling backend`);
+        setTimeout(async () => {
+          try {
+            if (agentType === 'planner') {
+              await apiClient?.plannerComplete(output);
+            } else if (agentType === 'builder') {
+              await apiClient?.builderComplete(true);
+            } else if (agentType === 'tester') {
+              await apiClient?.testerComplete(true);
+            }
+          } catch (err) {
+            log.error(`Error signaling ${agentType} completion:`, err);
+          }
+        }, 500);
+      }
+    }
+  );
+  
+  currentAgent = agentType;
+}
+
 function setupIpcHandlers(): void {
   ptyManager = new PtyManager();
+
+  apiClient?.on('spawn-agent', (msg: { agentType: string; projectDir: string; model: string }) => {
+    log.info('Received spawn-agent:', msg);
+    const prompt = getAgentPrompt(msg.agentType);
+    spawnOpenCodeAgent(msg.agentType, msg.model, msg.projectDir, prompt, (output) => {
+      apiClient?.sendMessage({ type: 'agent-output', agentType: msg.agentType, output });
+    });
+  });
+
+  apiClient?.on('agent-command', (msg: { agentType: string; command: string }) => {
+    log.info(`Sending command to ${msg.agentType}:`, msg.command);
+    ptyManager?.sendInput(msg.agentType, msg.command + '\n');
+  });
 
   ipcMain.handle('select-directory', async () => {
     const result = await dialog.showOpenDialog({

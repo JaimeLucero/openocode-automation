@@ -84,9 +84,11 @@
   flex: 1;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: 1fr;
   gap: 0.5rem;
   min-height: 0;
   height: 100%;
+  overflow: hidden;
 }
 
 .terminal-pane {
@@ -95,6 +97,7 @@
   background: var(--color-card);
   border-radius: 8px;
   overflow: hidden;
+  min-height: 200px;
 }
 
 .terminal-header {
@@ -104,6 +107,7 @@
   padding: 0.5rem 0.75rem;
   background: var(--color-secondary);
   border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
 .terminal-title {
@@ -121,28 +125,23 @@
 
 .terminal-content {
   flex: 1;
-  padding: 0.5rem;
+  padding: 0;
   overflow: hidden;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .xterm-container {
   flex: 1;
   min-height: 0;
   width: 100%;
-}
-
-.terminal-content .xterm {
   height: 100%;
-  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
 }
 
-.terminal-content .xterm-viewport {
+.xterm-viewport {
   overflow-y: auto !important;
-}
-
-.terminal-content .xterm-screen {
-  contain: strict;
 }

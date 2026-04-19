@@ -157,6 +157,12 @@ export class ApiClient {
     const message = data as { type: string; [key: string]: unknown };
 
     switch (message.type) {
+      case 'terminal-output':
+        this.sendIpc('terminal-output', { pane: message.pane, output: message.output });
+        break;
+      case 'agent-output':
+        this.sendIpc('terminal-output', { pane: message.agentType, output: message.output });
+        break;
       case 'phase-changed':
         this.sendIpc('phase-changed', { phase: message.phase });
         break;
