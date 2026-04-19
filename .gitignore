@@ -123,3 +123,4 @@ dmypy.json
 .opencode_orchestrator.lock
 orchestrator.yaml
 !examples/orchestrator.yaml
+node_modules/
