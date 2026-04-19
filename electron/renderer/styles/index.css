@@ -1,0 +1,148 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: hsl(220 20% 4%);
+  --color-foreground: hsl(213 17% 85%);
+  --color-card: hsl(220 15% 10%);
+  --color-card-foreground: hsl(213 17% 85%);
+  --color-popover: hsl(220 15% 10%);
+  --color-popover-foreground: hsl(213 17% 85%);
+  --color-primary: hsl(142 71% 45%);
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-secondary: hsl(217 19% 17%);
+  --color-secondary-foreground: hsl(213 17% 85%);
+  --color-muted: hsl(217 19% 17%);
+  --color-muted-foreground: hsl(215 14% 55%);
+  --color-accent: hsl(217 19% 17%);
+  --color-accent-foreground: hsl(213 17% 85%);
+  --color-destructive: hsl(0 72% 51%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-border: hsl(217 19% 20%);
+  --color-input: hsl(217 19% 20%);
+  --color-ring: hsl(142 71% 45%);
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted-foreground);
+}
+
+/* App Layout */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 0.75rem;
+  gap: 0.5rem;
+}
+
+.app header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.app header h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.app header .project-name {
+  font-size: 0.875rem;
+  color: var(--color-muted-foreground);
+}
+
+/* Terminal Grid */
+.terminal-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  min-height: 0;
+  height: 100%;
+}
+
+.terminal-pane {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-card);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.terminal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.terminal-title {
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.terminal-badge {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  background: var(--color-primary);
+  border-radius: 4px;
+  color: var(--color-primary-foreground);
+}
+
+.terminal-content {
+  flex: 1;
+  padding: 0.5rem;
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.xterm-container {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.terminal-content .xterm {
+  height: 100%;
+  width: 100%;
+}
+
+.terminal-content .xterm-viewport {
+  overflow-y: auto !important;
+}
+
+.terminal-content .xterm-screen {
+  contain: strict;
+}
