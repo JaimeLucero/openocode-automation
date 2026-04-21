@@ -229,6 +229,7 @@ export class ApiClient {
         this.sendIpc('phase-changed', { phase: message.phase });
         break;
       case 'progress':
+        log.info('Received progress broadcast:', message);
         this.sendIpc('progress', message);
         break;
       case 'ticket-status':

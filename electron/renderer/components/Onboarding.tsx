@@ -323,19 +323,6 @@ export function Onboarding({ onStart, error }: OnboardingProps) {
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-<SelectContent>
-                      {Object.keys(MODEL_DISPLAY_MAP).map((m) => (
-                        <SelectItem key={m} value={m}>{MODEL_DISPLAY_MAP[m]}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Tester Model (Testing & QA)</label>
-                  <Select value={testerModel} onValueChange={setTesterModel}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
                     <SelectContent>
                       {Object.keys(MODEL_DISPLAY_MAP).map((m) => (
                         <SelectItem key={m} value={m}>{MODEL_DISPLAY_MAP[m]}</SelectItem>

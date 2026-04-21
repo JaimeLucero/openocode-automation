@@ -43,7 +43,7 @@ async def start_automation(request: AutomationStartRequest):
 
     planner_model = request.planner_model or "opencode/minimax-m2.5-free"
     print(
-        f"[start] planner_model: {planner_model}, builder_model: {request.builder_model}, tester_model: {request.tester_model}"
+        f"[start] planner: {planner_model}, builder: {request.builder_model or planner_model}, tester: {request.tester_model or planner_model}"
     )
 
     session_id = engine.start(
@@ -147,13 +147,18 @@ async def planner_complete(request: dict):
         }
     )
 
-    print("[planner-complete] Broadcasting spawn-agent for builder...")
+    session = db.get_session_by_id(engine.session_id)
+    builder_model = session.get("builder_model") if session else engine.builder_model
+    print(f"[planner-complete] DB builder_model = '{builder_model}'")
+    print(
+        f"[planner-complete] Broadcasting spawn-agent for builder with model: {builder_model or engine.planner_model}"
+    )
     await broadcast(
         {
             "type": "spawn-agent",
             "agentType": "builder",
             "projectDir": engine._project_dir,
-            "model": engine.builder_model,
+            "model": builder_model or engine.planner_model,
         }
     )
 
@@ -192,13 +197,36 @@ async def builder_complete(request: dict):
     db.update_session_status(engine.session_id, "active")
     await broadcast({"type": "phase-changed", "phase": Phase.TESTING.value})
 
+    # Get ticket counts for progress
+    all_tickets = engine.machine._tickets
+    completed = sum(1 for t in all_tickets if t.status in ("completed", "passed"))
+    pending = len(all_tickets) - completed
+
+    print(
+        f"[builder-complete] Broadcasting progress: total={len(all_tickets)}, completed={completed}, pending={pending}"
+    )
+    await broadcast(
+        {
+            "type": "progress",
+            "total": len(all_tickets),
+            "completed": completed,
+            "failed": 0,
+            "pending": pending,
+            "currentTicket": engine.machine.current_ticket.id
+            if engine.machine.current_ticket
+            else None,
+        }
+    )
+
+    session = db.get_session_by_id(engine.session_id)
+    tester_model = session.get("tester_model") if session else engine.tester_model
     ticket = engine.machine.current_ticket
     await broadcast(
         {
             "type": "spawn-agent",
             "agentType": "tester",
             "projectDir": engine._project_dir,
-            "model": engine.tester_model,
+            "model": tester_model or engine.planner_model,
         }
     )
 
@@ -234,6 +262,25 @@ async def tester_complete(request: dict):
         engine.handle_test_failure(error)
 
     current_phase = engine.machine.current_phase
+
+    # Broadcast progress update
+    all_tickets = engine.machine._tickets
+    completed = sum(1 for t in all_tickets if t.status in ("completed", "passed"))
+    failed = sum(1 for t in all_tickets if t.status == "failed")
+    pending = len(all_tickets) - completed - failed
+
+    print(
+        f"[tester-complete] Broadcasting progress: total={len(all_tickets)}, completed={completed}, failed={failed}, pending={pending}"
+    )
+    await broadcast(
+        {
+            "type": "progress",
+            "total": len(all_tickets),
+            "completed": completed,
+            "failed": failed,
+            "pending": pending,
+        }
+    )
 
     if current_phase == Phase.COMPLETED:
         await broadcast({"type": "phase-changed", "phase": Phase.COMPLETED.value})

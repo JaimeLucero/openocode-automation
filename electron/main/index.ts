@@ -105,11 +105,11 @@ function spawnOpenCodeAgent(agentType: string, model: string, projectDir: string
   const opencodePath = findOpenCode();
   const fullModel = model.includes('/') ? model : `opencode/${model}`;
   
-  // For builder and tester, prompt comes via agent-command from backend
-  // For planner, we pass the prompt directly via CLI
-  const cliPrompt = agentType === 'planner' ? prompt : '';
+  // Use placeholder prompt to keep opencode running, actual task comes via agent-command
+  const cliPrompt = prompt || "Execute the given task.";
   
-  log.info(`Spawning ${agentType} with model ${fullModel}, prompt: ${cliPrompt ? cliPrompt.substring(0, 50) + '...' : '(from backend)'}`);
+  log.info(`Spawning ${agentType} with model ${fullModel}, placeholder prompt`);
+  // After spawn, agent-command will send the actual task
   
   ptyManager?.spawn(
     agentType,
@@ -206,6 +206,7 @@ function setupIpcHandlers(): void {
   }) => {
     try {
       log.info('Starting automation:', config);
+      log.info(`  Models: planner=${config.plannerModel}, builder=${config.builderModel}, tester=${config.testerModel}`);
       currentProjectDir = config.projectDir;
       const result = await apiClient?.startAutomation({
         projectDir: config.projectDir,
